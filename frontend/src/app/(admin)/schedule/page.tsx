@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '@/lib/api'
+import {
+  getAppointments, createAppointment, updateAppointment, updateAppointmentStatus,
+  deleteAppointment, getClients, getServices, getPaymentMethods, createClient,
+} from '@/lib/firestore'
 import { Appointment, Client, Service, PaymentMethod, AppointmentStatus, STATUS_LABELS, STATUS_COLORS } from '@/types'
 import { formatCurrency, formatDate, formatTime, formatDateTime } from '@/lib/utils'
 import {
@@ -43,13 +46,12 @@ function InlineClientForm({
     setForm(f => ({ ...f, phone: formatted.slice(0, 15) }))
   }
 
-  // Buscar cliente existente pelo celular enquanto digita
   const handlePhoneBlur = async () => {
     const digits = form.phone.replace(/\D/g, '')
     if (digits.length < 10) return
     try {
-      const { data } = await api.get('/clients', { params: { search: form.phone } })
-      const found = data.find((c: Client) => c.phone.replace(/\D/g, '') === digits)
+      const clients = await getClients(form.phone) as Client[]
+      const found = clients.find(c => c.phone.replace(/\D/g, '') === digits)
       if (found) {
         setError(`Já existe um cliente com este celular: ${found.firstName} ${found.lastName}`)
       } else {
@@ -62,11 +64,11 @@ function InlineClientForm({
     if (error || !form.firstName || !form.lastName || !form.phone) return
     setLoading(true)
     try {
-      const { data } = await api.post('/clients', form)
+      const data = await createClient(form) as Client
       addToast('success', `Cliente ${data.firstName} cadastrado!`)
       onCreated(data)
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao cadastrar cliente')
+      setError(err.message || 'Erro ao cadastrar cliente')
     } finally {
       setLoading(false)
     }
@@ -130,7 +132,7 @@ function ConflictAlert({
   onForce,
   onCancel,
 }: {
-  conflict: Appointment
+  conflict: any
   intervalMinutes: number
   onForce: () => void
   onCancel: () => void
@@ -152,19 +154,16 @@ function ConflictAlert({
 
         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-3">
           <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">
-            {formatDateTime(conflict.date)}
+            {conflict.date ? formatDateTime(conflict.date) : ''}
           </p>
-          <p className="text-sm text-orange-700 dark:text-orange-400 mt-0.5">
-            {conflict.client?.firstName} {conflict.client?.lastName} — {conflict.service?.name}
-          </p>
-          <span className={`badge text-xs mt-1 ${STATUS_COLORS[conflict.status]}`}>
-            {STATUS_LABELS[conflict.status]}
-          </span>
+          {conflict.client && (
+            <p className="text-sm text-orange-700 dark:text-orange-400 mt-0.5">
+              {conflict.client?.firstName} {conflict.client?.lastName}
+            </p>
+          )}
         </div>
 
-        <p className="text-sm text-gray-500">
-          Deseja agendar mesmo assim?
-        </p>
+        <p className="text-sm text-gray-500">Deseja agendar mesmo assim?</p>
 
         <div className="flex gap-3">
           <button onClick={onCancel} className="btn-secondary flex-1">Cancelar</button>
@@ -192,21 +191,22 @@ function AppointmentModal({
   const { addToast } = useToast()
   const [loading, setLoading] = useState(false)
   const [showNewClient, setShowNewClient] = useState(false)
-  const [conflict, setConflict] = useState<{ appointment: Appointment; intervalMinutes: number } | null>(null)
+  const [conflict, setConflict] = useState<{ appointment: any; intervalMinutes: number } | null>(null)
+  const queryClient = useQueryClient()
 
   const { data: clients = [], refetch: refetchClients } = useQuery<Client[]>({
     queryKey: ['clients'],
-    queryFn: async () => (await api.get('/clients')).data,
+    queryFn: () => getClients() as Promise<Client[]>,
   })
 
   const { data: services = [] } = useQuery<Service[]>({
     queryKey: ['services'],
-    queryFn: async () => (await api.get('/services')).data,
+    queryFn: () => getServices() as Promise<Service[]>,
   })
 
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ['payment-methods'],
-    queryFn: async () => (await api.get('/payment-methods')).data,
+    queryFn: () => getPaymentMethods() as Promise<PaymentMethod[]>,
   })
 
   const defaultDate = selectedDate || new Date()
@@ -240,29 +240,27 @@ function AppointmentModal({
         value: parseFloat(form.value),
         notes: form.notes || null,
         status: form.status,
-        force,
       }
 
-      // validateStatus: tratar 409 como resposta válida (evita erro no console do navegador)
-      const opts = { validateStatus: (s: number) => s < 500 }
-
-      const res = appointment
-        ? await api.put(`/appointments/${appointment.id}`, payload, opts)
-        : await api.post('/appointments', payload, opts)
-
-      if (res.status === 409 && res.data?.code === 'SCHEDULE_CONFLICT') {
-        setConflict({
-          appointment: res.data.conflictingAppointment,
-          intervalMinutes: res.data.intervalMinutes,
-        })
-        return
+      if (appointment) {
+        await updateAppointment(appointment.id, payload, force)
+      } else {
+        await createAppointment(payload, force)
       }
 
       addToast('success', appointment ? 'Agendamento atualizado!' : 'Agendamento criado!')
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       onSuccess()
       onClose()
     } catch (err: any) {
-      addToast('error', err.response?.data?.error || 'Erro ao salvar')
+      if (err.code === 'SCHEDULE_CONFLICT') {
+        const apt = err.conflictingAppointment || {}
+        if (apt.date?.toDate) apt.date = apt.date.toDate().toISOString()
+        setConflict({ appointment: apt, intervalMinutes: err.intervalMinutes })
+        return
+      }
+      addToast('error', err.message || 'Erro ao salvar')
     } finally {
       setLoading(false)
     }
@@ -470,31 +468,31 @@ export default function SchedulePage() {
   const getDateRange = () => {
     if (viewMode === 'month') {
       return {
-        start: startOfMonth(currentDate).toISOString(),
-        end: endOfMonth(currentDate).toISOString(),
+        start: startOfMonth(currentDate),
+        end: endOfMonth(currentDate),
       }
     }
     if (viewMode === 'week') {
       return {
-        start: startOfWeek(currentDate, { locale: ptBR }).toISOString(),
-        end: endOfWeek(currentDate, { locale: ptBR }).toISOString(),
+        start: startOfWeek(currentDate, { locale: ptBR }),
+        end: endOfWeek(currentDate, { locale: ptBR }),
       }
     }
     const d = new Date(currentDate); d.setHours(0, 0, 0, 0)
     const e = new Date(currentDate); e.setHours(23, 59, 59)
-    return { start: d.toISOString(), end: e.toISOString() }
+    return { start: d, end: e }
   }
 
   const range = getDateRange()
 
   const { data: appointments = [], isLoading } = useQuery<Appointment[]>({
-    queryKey: ['appointments', range.start, range.end],
-    queryFn: async () => (await api.get('/appointments', { params: { start: range.start, end: range.end } })).data,
+    queryKey: ['appointments', range.start.toISOString(), range.end.toISOString()],
+    queryFn: () => getAppointments(range.start, range.end) as Promise<Appointment[]>,
   })
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch(`/appointments/${id}/status`, { status }),
+      updateAppointmentStatus(id, status),
     onSuccess: () => {
       addToast('success', 'Status atualizado!')
       queryClient.invalidateQueries({ queryKey: ['appointments'] })
@@ -505,7 +503,7 @@ export default function SchedulePage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/appointments/${id}`),
+    mutationFn: (id: string) => deleteAppointment(id),
     onSuccess: () => {
       addToast('success', 'Agendamento removido')
       queryClient.invalidateQueries({ queryKey: ['appointments'] })

@@ -2,24 +2,43 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import api from '@/lib/api'
+import { getClient, getAppointments } from '@/lib/firestore'
 import { Client, Appointment, STATUS_LABELS, STATUS_COLORS } from '@/types'
 import { formatCurrency, formatDate, formatDateTime, formatTime } from '@/lib/utils'
 import {
   ArrowLeft, Phone, Calendar, DollarSign,
   Clock, Repeat, ChevronRight, Star, Edit2
 } from 'lucide-react'
-import { useState } from 'react'
 
 export default function ClientDetailPage() {
   const { id } = useParams()
   const router = useRouter()
 
-  const { data, isLoading } = useQuery<Client & { appointments: Appointment[] }>({
+  const { data, isLoading } = useQuery({
     queryKey: ['client', id],
     queryFn: async () => {
-      const { data } = await api.get(`/clients/${id}`)
-      return data
+      const [client, allApts] = await Promise.all([
+        getClient(id as string),
+        getAppointments(),
+      ])
+      if (!client) return null
+
+      const appointments = (allApts as any[]).filter(a => a.clientId === id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+      const completedApts = appointments.filter(a => a.status === 'COMPLETED')
+      const totalSpent = completedApts.reduce((s: number, a: any) => s + (a.value || 0), 0)
+      const totalAppointments = appointments.length
+
+      const lastAppointment = completedApts.length > 0
+        ? completedApts[0].date
+        : null
+
+      const nextAppointment = appointments
+        .filter(a => a.status === 'SCHEDULED' && new Date(a.date) > new Date())
+        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]?.date || null
+
+      return { ...client, appointments, totalSpent, totalAppointments, lastAppointment, nextAppointment }
     },
   })
 
@@ -32,8 +51,6 @@ export default function ClientDetailPage() {
   }
 
   if (!data) return <p className="text-gray-500">Cliente não encontrado.</p>
-
-  const completedAppointments = data.appointments?.filter(a => a.status === 'COMPLETED') || []
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -117,7 +134,7 @@ export default function ClientDetailPage() {
           </div>
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-800">
-            {data.appointments?.map(apt => (
+            {data.appointments?.map((apt: any) => (
               <div key={apt.id} className="p-4 flex items-start gap-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                 <div className="text-center min-w-[60px]">
                   <p className="text-xs text-gray-400">
@@ -131,8 +148,8 @@ export default function ClientDetailPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium text-gray-900 dark:text-white">{apt.service?.name}</p>
-                    <span className={`badge text-xs ${STATUS_COLORS[apt.status]}`}>
-                      {STATUS_LABELS[apt.status]}
+                    <span className={`badge text-xs ${STATUS_COLORS[apt.status as keyof typeof STATUS_COLORS]}`}>
+                      {STATUS_LABELS[apt.status as keyof typeof STATUS_LABELS]}
                     </span>
                   </div>
                   {apt.paymentMethod && (

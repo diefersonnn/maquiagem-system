@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '@/lib/api'
+import { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from '@/lib/firestore'
 import { InventoryItem } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Package, Plus, X, Trash2, Edit2, Search } from 'lucide-react'
@@ -22,7 +22,7 @@ function InventoryModal({
   const [form, setForm] = useState({
     name: item?.name || '',
     value: item?.value?.toString() || '',
-    purchaseDate: item?.purchaseDate ? item.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0],
+    purchaseDate: item?.purchaseDate ? String(item.purchaseDate).split('T')[0] : new Date().toISOString().split('T')[0],
     notes: item?.notes || '',
     category: item?.category || 'Outros',
   })
@@ -33,11 +33,12 @@ function InventoryModal({
     e.preventDefault()
     setLoading(true)
     try {
+      const payload = { ...form, value: parseFloat(form.value) }
       if (item) {
-        await api.put(`/inventory/${item.id}`, form)
+        await updateInventoryItem(item.id, payload)
         addToast('success', 'Item atualizado!')
       } else {
-        await api.post('/inventory', form)
+        await createInventoryItem(payload)
         addToast('success', 'Compra registrada!')
       }
       onSuccess()
@@ -133,28 +134,36 @@ export default function InventoryPage() {
   const { addToast } = useToast()
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery<{ items: InventoryItem[]; totalSpent: number; categories: any[] }>({
-    queryKey: ['inventory', search, categoryFilter],
-    queryFn: async () => {
-      const params: any = {}
-      if (search) params.search = search
-      if (categoryFilter) params.category = categoryFilter
-      return (await api.get('/inventory', { params })).data
-    },
+  const { data: allItems = [], isLoading } = useQuery<InventoryItem[]>({
+    queryKey: ['inventory'],
+    queryFn: () => getInventory() as Promise<InventoryItem[]>,
   })
 
+  const items = allItems.filter(item => {
+    const matchSearch = !search || item.name.toLowerCase().includes(search.toLowerCase())
+    const matchCategory = !categoryFilter || item.category === categoryFilter
+    return matchSearch && matchCategory
+  })
+
+  const totalSpent = items.reduce((s, i) => s + (i.value || 0), 0)
+
+  const categoryStats = CATEGORIES
+    .map(cat => ({
+      name: cat,
+      count: items.filter(i => i.category === cat).length,
+      total: items.filter(i => i.category === cat).reduce((s, i) => s + (i.value || 0), 0),
+    }))
+    .filter(c => c.count > 0)
+    .sort((a, b) => b.total - a.total)
+
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/inventory/${id}`),
+    mutationFn: (id: string) => deleteInventoryItem(id),
     onSuccess: () => {
       addToast('success', 'Item removido')
       queryClient.invalidateQueries({ queryKey: ['inventory'] })
     },
     onError: () => addToast('error', 'Erro ao remover'),
   })
-
-  const items = data?.items || []
-  const totalSpent = data?.totalSpent || 0
-  const categoryStats = data?.categories || []
 
   return (
     <div className="space-y-6">
