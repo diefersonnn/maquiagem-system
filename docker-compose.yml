@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: maquiadora_db
+    environment:
+      POSTGRES_USER: maquiadora
+      POSTGRES_PASSWORD: maquiadora123
+      POSTGRES_DB: maquiadora
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: maquiadora_backend
+    environment:
+      DATABASE_URL: postgresql://maquiadora:maquiadora123@postgres:5432/maquiadora
+      JWT_SECRET: maquiadora_jwt_secret_2024
+      PORT: 3001
+    ports:
+      - '3001:3001'
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - ./backend/backups:/app/backups
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: maquiadora_frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - '3000:3000'
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
