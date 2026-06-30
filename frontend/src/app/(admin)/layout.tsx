@@ -10,7 +10,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import BottomNav from '@/components/layout/BottomNav'
 
-const APP_VERSION = 'v1.5.0'
+const APP_VERSION = 'v1.6.0'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
