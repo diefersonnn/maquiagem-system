@@ -44,10 +44,35 @@ async function getAll(col: string, ...constraints: any[]) {
 export const clientsCol = () => collection(db, 'clients')
 
 export async function getClients(search?: string) {
-  const all = await getAll('clients', orderBy('firstName'))
-  if (!search) return all
+  const [clientsSnap, appointmentsSnap] = await Promise.all([
+    getDocs(query(collection(db, 'clients'), orderBy('firstName'))),
+    getDocs(collection(db, 'appointments')),
+  ])
+
+  // Calcular stats por cliente a partir dos agendamentos
+  const stats: Record<string, { total: number; spent: number; last: Date | null }> = {}
+  appointmentsSnap.docs.forEach(d => {
+    const a = d.data()
+    if (!a.clientId || a.status !== 'COMPLETED') return
+    if (!stats[a.clientId]) stats[a.clientId] = { total: 0, spent: 0, last: null }
+    stats[a.clientId].total++
+    stats[a.clientId].spent += a.value || 0
+    const dt = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date)
+    if (!stats[a.clientId].last || dt > stats[a.clientId].last!) {
+      stats[a.clientId].last = dt
+    }
+  })
+
+  let clients = clientsSnap.docs.map(d => ({
+    ...docToObj(d),
+    totalAppointments: stats[d.id]?.total || 0,
+    totalSpent: stats[d.id]?.spent || 0,
+    lastAppointment: stats[d.id]?.last || null,
+  }))
+
+  if (!search) return clients
   const s = search.toLowerCase()
-  return all.filter((c: any) =>
+  return clients.filter((c: any) =>
     c.firstName?.toLowerCase().includes(s) ||
     c.lastName?.toLowerCase().includes(s) ||
     c.phone?.includes(s)
