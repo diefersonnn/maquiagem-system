@@ -177,18 +177,18 @@ export async function checkConflict(date: Date, excludeId?: string) {
   const windowStart = Timestamp.fromDate(new Date(date.getTime() - intervalMinutes * 60 * 1000))
   const windowEnd = Timestamp.fromDate(new Date(date.getTime() + intervalMinutes * 60 * 1000))
 
+  // Apenas filtro por data (evita índice composto); status filtrado no client
   const snap = await getDocs(query(
     collection(db, 'appointments'),
     where('date', '>=', windowStart),
     where('date', '<=', windowEnd),
-    where('status', 'not-in', ['CANCELLED', 'NO_SHOW']),
     orderBy('date'),
-    limit(5),
+    limit(10),
   ))
 
   const conflict = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
-    .find((a: any) => a.id !== excludeId)
+    .find((a: any) => a.id !== excludeId && !['CANCELLED', 'NO_SHOW'].includes(a.status))
 
   return { hasConflict: !!conflict, conflictingAppointment: conflict || null, intervalMinutes }
 }
@@ -292,25 +292,26 @@ async function autoCreateFinancial(appointmentId: string) {
 export async function autoCompleteExpiredAppointments() {
   const intervalMinutes = await getIntervalMinutes()
   const cutoff = Timestamp.fromDate(new Date(Date.now() - intervalMinutes * 60 * 1000))
+  // Lookback de 30 dias — evita varrer todo o histórico e dispensa índice composto
+  const lookback = Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
 
   const snap = await getDocs(query(
     collection(db, 'appointments'),
-    where('status', '==', 'SCHEDULED'),
+    where('date', '>=', lookback),
     where('date', '<=', cutoff),
+    orderBy('date'),
   ))
 
-  if (snap.empty) return
+  const toComplete = snap.docs.filter(d => d.data().status === 'SCHEDULED')
+  if (toComplete.length === 0) return
 
   const batch = writeBatch(db)
-  snap.docs.forEach(d => batch.update(d.ref, { status: 'COMPLETED', updatedAt: serverTimestamp() }))
+  toComplete.forEach(d => batch.update(d.ref, { status: 'COMPLETED', updatedAt: serverTimestamp() }))
   await batch.commit()
 
-  // Criar financeiros
-  for (const d of snap.docs) {
+  for (const d of toComplete) {
     await autoCreateFinancial(d.id)
   }
-
-  console.log(`[AutoComplete] ${snap.docs.length} agendamento(s) concluído(s)`)
 }
 
 // ─── FINANCIALS ───────────────────────────────────────────────────────────────
@@ -434,17 +435,17 @@ export async function getDashboardData() {
     }
   }))
 
-  // Próximos agendamentos
+  // Próximos agendamentos — status filtrado no client para evitar índice composto
   const tomorrow = new Date(startOfDay); tomorrow.setDate(tomorrow.getDate() + 1)
   const nextWeek = new Date(startOfDay); nextWeek.setDate(nextWeek.getDate() + 7)
   const upcomingSnap = await getDocs(query(
     collection(db, 'appointments'),
     where('date', '>=', Timestamp.fromDate(tomorrow)),
     where('date', '<=', Timestamp.fromDate(nextWeek)),
-    where('status', '==', 'SCHEDULED'),
-    orderBy('date'), limit(10),
+    orderBy('date'), limit(20),
   ))
-  const upcomingAppointments = await Promise.all(upcomingSnap.docs.map(async d => {
+  const upcomingDocs = upcomingSnap.docs.filter(d => d.data().status === 'SCHEDULED')
+  const upcomingAppointments = await Promise.all(upcomingDocs.map(async d => {
     const apt = { id: d.id, ...d.data(), date: toDate((d.data() as any).date) } as any
     const [cs, ss] = await Promise.all([
       apt.clientId ? getDoc(doc(db, 'clients', apt.clientId)) : null,
