@@ -30,3 +30,4 @@ export function getToken() { return null }
 export function getUser() { return auth.currentUser ? { name: auth.currentUser.displayName || auth.currentUser.email, email: auth.currentUser.email } : null }
 export function setAuth() {}
 export function clearAuth() {}
+

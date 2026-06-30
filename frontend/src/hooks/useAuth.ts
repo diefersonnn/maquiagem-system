@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'
-import { auth, login as firebaseLogin, logout as firebaseLogout } from '@/lib/auth'
+import { auth } from '@/lib/firebase'
+import { login as firebaseLogin, logout as firebaseLogout } from '@/lib/auth'
 
 export function useAuth() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null)
