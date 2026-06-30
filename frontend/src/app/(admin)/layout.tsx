@@ -10,6 +10,8 @@ import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import BottomNav from '@/components/layout/BottomNav'
 
+const APP_VERSION = 'v1.2.0'
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [checked, setChecked] = useState(false)
@@ -41,6 +43,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </main>
       </div>
       <BottomNav />
+      <span className="fixed bottom-3 right-3 z-50 text-[10px] font-mono text-gray-300 dark:text-gray-600 select-none pointer-events-none">
+        {APP_VERSION}
+      </span>
     </div>
   )
 }
