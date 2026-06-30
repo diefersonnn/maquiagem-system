@@ -2,22 +2,42 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '@/lib/api'
+import { getFinancials, createFinancial, deleteFinancial } from '@/lib/firestore'
 import { Financial, FinancialSummary } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import {
   DollarSign, TrendingUp, TrendingDown, Plus, X, Trash2,
-  ArrowUpCircle, ArrowDownCircle, Filter, PieChart
+  ArrowUpCircle, ArrowDownCircle, Filter
 } from 'lucide-react'
 import { useToast } from '@/app/providers'
-import {
-  PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip
-} from 'recharts'
 
 const EXPENSE_CATEGORIES = ['Material', 'Despesas fixas', 'Transporte', 'Marketing', 'Outros']
-const COLORS = ['#d946ef', '#f43f5e', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b']
 
 type PeriodFilter = 'today' | 'week' | 'month' | 'year' | 'custom'
+
+function getPeriodDates(period: PeriodFilter, customStart: string, customEnd: string): { start: Date; end: Date } {
+  const now = new Date()
+  switch (period) {
+    case 'today':
+      return {
+        start: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+        end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59),
+      }
+    case 'week': {
+      const ws = new Date(now); ws.setDate(now.getDate() - now.getDay()); ws.setHours(0, 0, 0, 0)
+      return { start: ws, end: new Date() }
+    }
+    case 'month':
+      return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date() }
+    case 'year':
+      return { start: new Date(now.getFullYear(), 0, 1), end: new Date() }
+    case 'custom':
+      return {
+        start: customStart ? new Date(customStart) : new Date(now.getFullYear(), now.getMonth(), 1),
+        end: customEnd ? new Date(customEnd + 'T23:59:59') : new Date(),
+      }
+  }
+}
 
 function IncomeModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [form, setForm] = useState({
@@ -33,7 +53,7 @@ function IncomeModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     e.preventDefault()
     setLoading(true)
     try {
-      await api.post('/financial/income', form)
+      await createFinancial({ ...form, type: 'INCOME', value: parseFloat(form.value) })
       addToast('success', 'Receita registrada!')
       onSuccess()
       onClose()
@@ -90,7 +110,7 @@ function ExpenseModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
     e.preventDefault()
     setLoading(true)
     try {
-      await api.post('/financial/expense', form)
+      await createFinancial({ ...form, type: 'EXPENSE', value: parseFloat(form.value) })
       addToast('success', 'Despesa registrada!')
       onSuccess()
       onClose()
@@ -149,20 +169,23 @@ export default function FinancialPage() {
   const { addToast } = useToast()
   const queryClient = useQueryClient()
 
-  const params: any = { period }
-  if (period === 'custom' && customStart && customEnd) {
-    params.start = customStart
-    params.end = customEnd
-  }
-  if (activeTab !== 'all') params.type = activeTab.toUpperCase()
-
   const { data, isLoading } = useQuery<FinancialSummary>({
     queryKey: ['financial', period, customStart, customEnd, activeTab],
-    queryFn: async () => (await api.get('/financial', { params })).data,
+    queryFn: async () => {
+      const { start, end } = getPeriodDates(period, customStart, customEnd)
+      const items = await getFinancials(start, end) as Financial[]
+      const filtered = activeTab === 'all' ? items : items.filter(i => i.type === activeTab.toUpperCase())
+      const totalIncome = filtered.filter(i => i.type === 'INCOME').reduce((s, i) => s + i.value, 0)
+      const totalExpenses = filtered.filter(i => i.type === 'EXPENSE').reduce((s, i) => s + i.value, 0)
+      return {
+        items: filtered,
+        summary: { totalIncome, totalExpenses, netProfit: totalIncome - totalExpenses },
+      }
+    },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/financial/${id}`),
+    mutationFn: (id: string) => deleteFinancial(id),
     onSuccess: () => {
       addToast('success', 'Entrada removida')
       queryClient.invalidateQueries({ queryKey: ['financial'] })

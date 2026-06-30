@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import api from '@/lib/api'
+import { getDashboardData } from '@/lib/firestore'
 import { formatCurrency, formatDateTime, formatTime } from '@/lib/utils'
 import { DashboardData, STATUS_LABELS, STATUS_COLORS } from '@/types'
 import {
@@ -42,10 +42,7 @@ function StatCard({
 export default function DashboardPage() {
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
-    queryFn: async () => {
-      const { data } = await api.get('/dashboard')
-      return data
-    },
+    queryFn: getDashboardData,
     refetchInterval: 60000,
   })
 

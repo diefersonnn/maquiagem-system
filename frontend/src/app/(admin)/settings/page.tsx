@@ -2,28 +2,36 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '@/lib/api'
+import {
+  getServices, createService, updateService, deleteService,
+  getPaymentMethods, createPaymentMethod, deletePaymentMethod,
+  getSettings, updateSetting,
+} from '@/lib/firestore'
+import { auth } from '@/lib/firebase'
+import {
+  updateProfile, updatePassword, reauthenticateWithCredential, EmailAuthProvider
+} from 'firebase/auth'
 import { Service, PaymentMethod } from '@/types'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import {
   Settings, Scissors, CreditCard, Shield, Plus, X, Edit2, Trash2,
-  Save, Download, Upload, Trash, RefreshCw, Sun, Moon, User, Calendar, Clock
+  Save, Sun, Moon, User, Calendar, Clock, Cloud
 } from 'lucide-react'
 import { useToast } from '@/app/providers'
 import { useTheme } from '@/app/providers'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'services' | 'payments' | 'agenda' | 'backup' | 'profile'>('services')
+  const [activeTab, setActiveTab] = useState<'services' | 'payments' | 'agenda' | 'profile'>('services')
   const { addToast } = useToast()
   const { theme, toggleTheme } = useTheme()
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  // Services
+  // ─── Services ──────────────────────────────────────────────────────────────
   const { data: services = [] } = useQuery<Service[]>({
     queryKey: ['services'],
-    queryFn: async () => (await api.get('/services')).data,
+    queryFn: () => getServices() as Promise<Service[]>,
   })
 
   const [editService, setEditService] = useState<Service | null>(null)
@@ -32,10 +40,8 @@ export default function SettingsPage() {
 
   const saveServiceMutation = useMutation({
     mutationFn: async (data: any) => {
-      if (editService) {
-        return api.put(`/services/${editService.id}`, data)
-      }
-      return api.post('/services', data)
+      if (editService) return updateService(editService.id, data)
+      return createService(data)
     },
     onSuccess: () => {
       addToast('success', editService ? 'Serviço atualizado!' : 'Serviço criado!')
@@ -48,24 +54,24 @@ export default function SettingsPage() {
   })
 
   const deleteServiceMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/services/${id}`),
+    mutationFn: (id: string) => deleteService(id),
     onSuccess: () => {
       addToast('success', 'Serviço desativado')
       queryClient.invalidateQueries({ queryKey: ['services'] })
     },
   })
 
-  // Payment Methods
+  // ─── Payment Methods ────────────────────────────────────────────────────────
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ['payment-methods-all'],
-    queryFn: async () => (await api.get('/payment-methods')).data,
+    queryFn: () => getPaymentMethods() as Promise<PaymentMethod[]>,
   })
 
   const [newPayment, setNewPayment] = useState('')
   const [showPaymentForm, setShowPaymentForm] = useState(false)
 
   const savePaymentMutation = useMutation({
-    mutationFn: (name: string) => api.post('/payment-methods', { name }),
+    mutationFn: (name: string) => createPaymentMethod(name),
     onSuccess: () => {
       addToast('success', 'Forma de pagamento adicionada!')
       queryClient.invalidateQueries({ queryKey: ['payment-methods-all'] })
@@ -76,72 +82,17 @@ export default function SettingsPage() {
   })
 
   const deletePaymentMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/payment-methods/${id}`),
+    mutationFn: (id: string) => deletePaymentMethod(id),
     onSuccess: () => {
       addToast('success', 'Forma de pagamento removida')
       queryClient.invalidateQueries({ queryKey: ['payment-methods-all'] })
     },
   })
 
-  // Backup
-  const { data: backups = [], refetch: refetchBackups } = useQuery<any[]>({
-    queryKey: ['backups'],
-    queryFn: async () => (await api.get('/backup/list')).data,
-    enabled: activeTab === 'backup',
-  })
-
-  const createBackupMutation = useMutation({
-    mutationFn: () => api.post('/backup/create'),
-    onSuccess: () => {
-      addToast('success', 'Backup criado com sucesso!')
-      refetchBackups()
-    },
-    onError: () => addToast('error', 'Erro ao criar backup'),
-  })
-
-  const deleteBackupMutation = useMutation({
-    mutationFn: (filename: string) => api.delete(`/backup/${filename}`),
-    onSuccess: () => {
-      addToast('success', 'Backup removido')
-      refetchBackups()
-    },
-  })
-
-  const restoreBackupMutation = useMutation({
-    mutationFn: (filename: string) => api.post(`/backup/restore/${filename}`),
-    onSuccess: () => {
-      addToast('success', 'Backup restaurado com sucesso!')
-      queryClient.invalidateQueries()
-    },
-    onError: () => addToast('error', 'Erro ao restaurar backup'),
-  })
-
-  const downloadBackup = (filename: string) => {
-    const token = localStorage.getItem('token')
-    const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/backup/download/${filename}`
-    const a = document.createElement('a')
-    a.href = url
-    a.click()
-  }
-
-  // Profile
-  const [profileForm, setProfileForm] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    currentPassword: '',
-    newPassword: '',
-  })
-
-  const updateProfileMutation = useMutation({
-    mutationFn: (data: any) => api.put('/auth/profile', data),
-    onSuccess: () => addToast('success', 'Perfil atualizado!'),
-    onError: (err: any) => addToast('error', err.response?.data?.error || 'Erro ao atualizar'),
-  })
-
-  // System Settings (Agenda)
+  // ─── Agenda Settings ────────────────────────────────────────────────────────
   const { data: systemSettings, refetch: refetchSettings } = useQuery({
     queryKey: ['system-settings'],
-    queryFn: async () => (await api.get('/settings')).data as Record<string, { value: string; label: string | null }>,
+    queryFn: () => getSettings(),
     enabled: activeTab === 'agenda',
   })
 
@@ -154,7 +105,7 @@ export default function SettingsPage() {
   }, [systemSettings])
 
   const saveIntervalMutation = useMutation({
-    mutationFn: (value: number) => api.put('/settings/appointment_interval_minutes', { value: String(value) }),
+    mutationFn: (value: number) => updateSetting('appointment_interval_minutes', String(value)),
     onSuccess: () => {
       addToast('success', 'Intervalo atualizado!')
       refetchSettings()
@@ -162,10 +113,43 @@ export default function SettingsPage() {
     onError: () => addToast('error', 'Erro ao salvar configuração'),
   })
 
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  // ─── Profile ────────────────────────────────────────────────────────────────
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    currentPassword: '',
+    newPassword: '',
+  })
+  const [profileLoading, setProfileLoading] = useState(false)
+
+  const handleSaveProfile = async () => {
+    const fbUser = auth.currentUser
+    if (!fbUser) return
+    setProfileLoading(true)
+    try {
+      if (profileForm.name && profileForm.name !== fbUser.displayName) {
+        await updateProfile(fbUser, { displayName: profileForm.name })
+      }
+      if (profileForm.newPassword) {
+        if (!profileForm.currentPassword) {
+          addToast('error', 'Informe a senha atual para alterá-la')
+          setProfileLoading(false)
+          return
+        }
+        const credential = EmailAuthProvider.credential(fbUser.email!, profileForm.currentPassword)
+        await reauthenticateWithCredential(fbUser, credential)
+        await updatePassword(fbUser, profileForm.newPassword)
+      }
+      addToast('success', 'Perfil atualizado!')
+      setProfileForm(f => ({ ...f, currentPassword: '', newPassword: '' }))
+    } catch (err: any) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        addToast('error', 'Senha atual incorreta')
+      } else {
+        addToast('error', 'Erro ao atualizar perfil')
+      }
+    } finally {
+      setProfileLoading(false)
+    }
   }
 
   return (
@@ -181,7 +165,6 @@ export default function SettingsPage() {
           ['services', Scissors, 'Serviços'],
           ['payments', CreditCard, 'Pagamentos'],
           ['agenda', Calendar, 'Agenda'],
-          ['backup', Shield, 'Backup'],
           ['profile', User, 'Perfil'],
         ] as [typeof activeTab, any, string][]).map(([tab, Icon, label]) => (
           <button
@@ -244,7 +227,9 @@ export default function SettingsPage() {
                 <button onClick={() => { setShowServiceForm(false); setEditService(null) }} className="btn-secondary text-sm">Cancelar</button>
                 <button
                   onClick={() => saveServiceMutation.mutate(
-                    editService ? { name: editService.name, price: editService.price } : { name: newService.name, price: parseFloat(newService.price) }
+                    editService
+                      ? { name: editService.name, price: editService.price }
+                      : { name: newService.name, price: parseFloat(newService.price) }
                   )}
                   className="btn-primary text-sm"
                 >
@@ -338,9 +323,7 @@ export default function SettingsPage() {
         <div className="card p-5 space-y-6">
           <div>
             <h2 className="font-semibold text-gray-900 dark:text-white">Configurações de Agenda</h2>
-            <p className="text-sm text-gray-400 mt-1">
-              Defina as regras para criação de agendamentos.
-            </p>
+            <p className="text-sm text-gray-400 mt-1">Defina as regras para criação de agendamentos.</p>
           </div>
 
           <div className="border border-gray-100 dark:border-gray-800 rounded-xl p-4 space-y-4">
@@ -354,7 +337,7 @@ export default function SettingsPage() {
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
                   Se dois agendamentos ficarem dentro deste intervalo, o sistema alertará sobre conflito.
-                  Configure como <strong>0</strong> para desativar a verificação.
+                  Configure como <strong>0</strong> para desativar.
                 </p>
               </div>
             </div>
@@ -409,102 +392,29 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Backup */}
-      {activeTab === 'backup' && (
-        <div className="space-y-4">
-          <div className="card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">Backup do Sistema</h2>
-                <p className="text-sm text-gray-400 mt-0.5">Backup automático todo dia às 2h da manhã</p>
-              </div>
-              <button
-                onClick={() => createBackupMutation.mutate()}
-                disabled={createBackupMutation.isPending}
-                className="btn-primary"
-              >
-                {createBackupMutation.isPending
-                  ? <RefreshCw size={15} className="animate-spin" />
-                  : <Download size={15} />
-                }
-                Criar Backup Agora
-              </button>
-            </div>
-
-            {backups.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-2">
-                <Shield size={36} className="text-gray-300" />
-                <p className="text-gray-400 text-sm">Nenhum backup encontrado</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                {backups.map((backup: any) => (
-                  <div key={backup.filename} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{backup.filename}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {formatDate(backup.createdAt)} • {formatBytes(backup.size)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => downloadBackup(backup.filename)}
-                        className="btn-secondary text-sm py-1.5 px-3"
-                        title="Baixar"
-                      >
-                        <Download size={13} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm('Restaurar este backup? Todos os dados atuais serão substituídos.')) {
-                            restoreBackupMutation.mutate(backup.filename)
-                          }
-                        }}
-                        disabled={restoreBackupMutation.isPending}
-                        className="btn-secondary text-sm py-1.5 px-3"
-                        title="Restaurar"
-                      >
-                        <Upload size={13} />
-                      </button>
-                      <button
-                        onClick={() => { if (confirm('Remover este backup?')) deleteBackupMutation.mutate(backup.filename) }}
-                        className="btn-danger text-sm py-1.5 px-3"
-                        title="Excluir"
-                      >
-                        <Trash size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Profile */}
       {activeTab === 'profile' && (
         <div className="space-y-4">
           <div className="card p-5 space-y-4">
             <h2 className="font-semibold text-gray-900 dark:text-white">Meu Perfil</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="label">Nome</label>
-                <input
-                  className="input"
-                  value={profileForm.name}
-                  onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label">Email</label>
-                <input
-                  type="email"
-                  className="input"
-                  value={profileForm.email}
-                  onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))}
-                />
-              </div>
+            <div>
+              <label className="label">Email</label>
+              <input
+                type="email"
+                className="input bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
+                value={auth.currentUser?.email || ''}
+                readOnly
+              />
+              <p className="text-xs text-gray-400 mt-1">O email não pode ser alterado.</p>
+            </div>
+            <div>
+              <label className="label">Nome de exibição</label>
+              <input
+                className="input"
+                value={profileForm.name}
+                onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Seu nome"
+              />
             </div>
             <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Alterar Senha</h3>
@@ -532,12 +442,12 @@ export default function SettingsPage() {
               </div>
             </div>
             <button
-              onClick={() => updateProfileMutation.mutate(profileForm)}
-              disabled={updateProfileMutation.isPending}
+              onClick={handleSaveProfile}
+              disabled={profileLoading}
               className="btn-primary"
             >
               <Save size={15} />
-              Salvar Alterações
+              {profileLoading ? 'Salvando...' : 'Salvar Alterações'}
             </button>
           </div>
 
@@ -561,6 +471,17 @@ export default function SettingsPage() {
                   }
                 </div>
               </button>
+            </div>
+          </div>
+
+          {/* Firebase info */}
+          <div className="card p-5">
+            <div className="flex items-center gap-3">
+              <Cloud size={20} className="text-blue-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Dados na Nuvem</p>
+                <p className="text-xs text-gray-400">Seus dados são gerenciados pelo Firebase com backup automático e segurança em nuvem.</p>
+              </div>
             </div>
           </div>
         </div>

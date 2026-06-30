@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import api from '@/lib/api'
+import { getClients, createClient, updateClient, deleteClient } from '@/lib/firestore'
 import { Client } from '@/types'
 import { formatCurrency, formatDate, formatPhone } from '@/lib/utils'
 import { Plus, Search, Users, Phone, Calendar, DollarSign, ChevronRight, Edit2, Trash2, X } from 'lucide-react'
@@ -31,16 +31,16 @@ function ClientFormModal({
     setLoading(true)
     try {
       if (client) {
-        await api.put(`/clients/${client.id}`, form)
+        await updateClient(client.id, form)
         addToast('success', 'Cliente atualizado!')
       } else {
-        await api.post('/clients', form)
+        await createClient(form)
         addToast('success', 'Cliente cadastrado!')
       }
       onSuccess()
       onClose()
     } catch (err: any) {
-      addToast('error', err.response?.data?.error || 'Erro ao salvar cliente')
+      addToast('error', err.message || 'Erro ao salvar cliente')
     } finally {
       setLoading(false)
     }
@@ -123,14 +123,11 @@ export default function ClientsPage() {
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({
     queryKey: ['clients', search],
-    queryFn: async () => {
-      const { data } = await api.get('/clients', { params: { search: search || undefined } })
-      return data
-    },
+    queryFn: () => getClients(search || undefined) as Promise<Client[]>,
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/clients/${id}`),
+    mutationFn: (id: string) => deleteClient(id),
     onSuccess: () => {
       addToast('success', 'Cliente removido')
       queryClient.invalidateQueries({ queryKey: ['clients'] })
