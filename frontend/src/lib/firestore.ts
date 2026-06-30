@@ -391,36 +391,65 @@ export async function deleteInventoryItem(id: string) {
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 
 export async function getDashboardData() {
-  await autoCompleteExpiredAppointments()
+  // Erro aqui nunca deve impedir o dashboard de carregar — é apenas housekeeping
+  try { await autoCompleteExpiredAppointments() } catch { /* silencioso */ }
 
   const now = new Date()
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
-  const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0, 0, 0, 0)
+  const startOfDay   = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const endOfDay     = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  const startOfWeek  = new Date(now)
+  startOfWeek.setDate(now.getDate() - now.getDay())
+  startOfWeek.setHours(0, 0, 0, 0)
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const startOfYear = new Date(now.getFullYear(), 0, 1)
+  const startOfYear  = new Date(now.getFullYear(), 0, 1)
 
-  const [allFinancials, allAppointments, clientsSnap] = await Promise.all([
-    getDocs(query(collection(db, 'financials'), where('date', '>=', Timestamp.fromDate(startOfYear)), orderBy('date'))),
-    getDocs(query(collection(db, 'appointments'), where('date', '>=', Timestamp.fromDate(startOfDay)), orderBy('date'))),
+  // Busca primária: clientes (sem filtro = nunca falha por índice)
+  // e todas as coleções com queries simples de campo único
+  const [clientsSnap, allAppointmentsSnap, allFinancialsSnap] = await Promise.all([
     getDocs(collection(db, 'clients')),
+    getDocs(collection(db, 'appointments')),
+    getDocs(collection(db, 'financials')),
   ])
 
-  const financials = allFinancials.docs.map(d => ({ id: d.id, ...d.data(), date: toDate((d.data() as any).date) } as any))
   const totalClients = clientsSnap.size
 
-  const income = (f: any[]) => f.filter(x => x.type === 'INCOME').reduce((s, x) => s + x.value, 0)
-  const expense = (f: any[]) => f.filter(x => x.type === 'EXPENSE').reduce((s, x) => s + x.value, 0)
+  // Processar financeiros client-side (evita qualquer query composta)
+  const allFinancials = allFinancialsSnap.docs.map(d => ({
+    id: d.id, ...d.data(), date: toDate((d.data() as any).date),
+  } as any))
 
-  const fin = (start: Date, end?: Date) => financials.filter(f => {
+  const income  = (f: any[]) => f.filter(x => x.type === 'INCOME').reduce((s, x) => s + (x.value || 0), 0)
+  const expense = (f: any[]) => f.filter(x => x.type === 'EXPENSE').reduce((s, x) => s + (x.value || 0), 0)
+  const fin = (start: Date, end?: Date) => allFinancials.filter(f => {
     const d = f.date instanceof Date ? f.date : new Date(f.date)
     return d >= start && (end ? d <= end : true)
   })
 
-  // Agendamentos do dia (enriquecidos)
-  const todayApts = allAppointments.docs.map(d => ({ id: d.id, ...d.data(), date: toDate((d.data() as any).date) } as any))
-    .filter((a: any) => a.status !== 'CANCELLED' && toDate(a.date) >= startOfDay && toDate(a.date) <= endOfDay)
+  // Processar agendamentos client-side
+  const allApts = allAppointmentsSnap.docs.map(d => ({
+    id: d.id, ...d.data(), date: toDate((d.data() as any).date),
+  } as any))
 
+  const todayApts = allApts.filter((a: any) =>
+    a.status !== 'CANCELLED' &&
+    toDate(a.date) >= startOfDay &&
+    toDate(a.date) <= endOfDay
+  )
+
+  const tomorrow = new Date(startOfDay); tomorrow.setDate(tomorrow.getDate() + 1)
+  const nextWeek  = new Date(startOfDay); nextWeek.setDate(nextWeek.getDate() + 7)
+  const upcomingApts = allApts
+    .filter((a: any) =>
+      a.status === 'SCHEDULED' &&
+      toDate(a.date) >= tomorrow &&
+      toDate(a.date) <= nextWeek
+    )
+    .sort((a: any, b: any) => toDate(a.date).getTime() - toDate(b.date).getTime())
+    .slice(0, 10)
+
+  const scheduledApts = allApts.filter((a: any) => a.status === 'SCHEDULED')
+
+  // Enriquecer agendamentos de hoje com dados relacionais
   const todayAppointments = await Promise.all(todayApts.map(async (apt: any) => {
     const [clientSnap, serviceSnap, pmSnap] = await Promise.all([
       apt.clientId ? getDoc(doc(db, 'clients', apt.clientId)) : null,
@@ -435,35 +464,27 @@ export async function getDashboardData() {
     }
   }))
 
-  // Próximos agendamentos — status filtrado no client para evitar índice composto
-  const tomorrow = new Date(startOfDay); tomorrow.setDate(tomorrow.getDate() + 1)
-  const nextWeek = new Date(startOfDay); nextWeek.setDate(nextWeek.getDate() + 7)
-  const upcomingSnap = await getDocs(query(
-    collection(db, 'appointments'),
-    where('date', '>=', Timestamp.fromDate(tomorrow)),
-    where('date', '<=', Timestamp.fromDate(nextWeek)),
-    orderBy('date'), limit(20),
-  ))
-  const upcomingDocs = upcomingSnap.docs.filter(d => d.data().status === 'SCHEDULED')
-  const upcomingAppointments = await Promise.all(upcomingDocs.map(async d => {
-    const apt = { id: d.id, ...d.data(), date: toDate((d.data() as any).date) } as any
+  // Enriquecer próximos agendamentos
+  const upcomingAppointments = await Promise.all(upcomingApts.map(async (apt: any) => {
     const [cs, ss] = await Promise.all([
       apt.clientId ? getDoc(doc(db, 'clients', apt.clientId)) : null,
       apt.serviceId ? getDoc(doc(db, 'services', apt.serviceId)) : null,
     ])
-    return { ...apt, client: cs?.exists() ? { id: cs.id, ...cs.data() } : null, service: ss?.exists() ? { id: ss.id, ...ss.data() } : null }
+    return {
+      ...apt,
+      client: cs?.exists() ? { id: cs.id, ...cs.data() } : null,
+      service: ss?.exists() ? { id: ss.id, ...ss.data() } : null,
+    }
   }))
 
-  // Projeção (SCHEDULED ainda não concluídos)
-  const scheduledSnap = await getDocs(query(collection(db, 'appointments'), where('status', '==', 'SCHEDULED')))
-  const scheduled = scheduledSnap.docs.map(d => ({ id: d.id, ...d.data(), date: toDate((d.data() as any).date) } as any))
-  const projectedDay = scheduled.filter((a: any) => { const d = toDate(a.date); return d >= startOfDay && d <= endOfDay }).reduce((s: number, a: any) => s + (a.value || 0), 0)
-  const projectedMonth = scheduled.filter((a: any) => toDate(a.date) >= startOfMonth).reduce((s: number, a: any) => s + (a.value || 0), 0)
+  // Projeções
+  const projectedDay   = scheduledApts.filter((a: any) => { const d = toDate(a.date); return d >= startOfDay && d <= endOfDay }).reduce((s: number, a: any) => s + (a.value || 0), 0)
+  const projectedMonth = scheduledApts.filter((a: any) => toDate(a.date) >= startOfMonth).reduce((s: number, a: any) => s + (a.value || 0), 0)
 
   // Chart data
   const monthFin = fin(startOfMonth)
   const dailyRevenue: Record<string, number> = {}
-  monthFin.filter(f => f.type === 'INCOME').forEach(f => {
+  monthFin.filter((f: any) => f.type === 'INCOME').forEach((f: any) => {
     const day = (f.date instanceof Date ? f.date : new Date(f.date)).getDate().toString()
     dailyRevenue[day] = (dailyRevenue[day] || 0) + f.value
   })
@@ -471,17 +492,17 @@ export async function getDashboardData() {
     day: (i + 1).toString(), value: dailyRevenue[(i + 1).toString()] || 0,
   }))
 
-  const monthIncome = income(fin(startOfMonth))
+  const monthIncome   = income(fin(startOfMonth))
   const monthExpenses = expense(fin(startOfMonth))
 
   return {
     todayAppointments,
     upcomingAppointments,
     revenue: {
-      day: income(fin(startOfDay, endOfDay)),
-      week: income(fin(startOfWeek)),
+      day:   income(fin(startOfDay, endOfDay)),
+      week:  income(fin(startOfWeek)),
       month: monthIncome,
-      year: income(fin(startOfYear)),
+      year:  income(fin(startOfYear)),
     },
     projection: { day: projectedDay, month: projectedMonth },
     expenses: { month: monthExpenses },
