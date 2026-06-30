@@ -6,8 +6,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/app/providers'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@maquiadora.com')
-  const [password, setPassword] = useState('admin123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const { addToast } = useToast()
