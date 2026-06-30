@@ -95,7 +95,7 @@ export default function ReportsPage() {
       // ── Services report ──────────────────────────────────────────────────
       const serviceStats: Record<string, { name: string; count: number; total: number }> = {}
       completedApts.forEach((apt: any) => {
-        const name = apt.service?.name || apt.serviceId || 'Desconhecido'
+        const name = apt.service?.name || (apt.serviceId ? 'Serviço removido' : 'Avulso')
         if (!serviceStats[name]) serviceStats[name] = { name, count: 0, total: 0 }
         serviceStats[name].count++
         serviceStats[name].total += apt.value || 0

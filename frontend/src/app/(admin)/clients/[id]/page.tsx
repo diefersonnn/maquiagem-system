@@ -28,7 +28,7 @@ export default function ClientDetailPage() {
 
       const completedApts = appointments.filter(a => a.status === 'COMPLETED')
       const totalSpent = completedApts.reduce((s: number, a: any) => s + (a.value || 0), 0)
-      const totalAppointments = appointments.length
+      const totalAppointments = completedApts.length
 
       const lastAppointment = completedApts.length > 0
         ? completedApts[0].date
