@@ -43,7 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </main>
       </div>
       <BottomNav />
-      <span className="fixed bottom-3 right-3 z-50 text-[10px] font-mono text-gray-300 dark:text-gray-600 select-none pointer-events-none">
+      <span className="fixed bottom-3 right-3 z-50 text-[10px] font-mono bg-black/10 dark:bg-white/10 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded select-none pointer-events-none">
         {APP_VERSION}
       </span>
     </div>
