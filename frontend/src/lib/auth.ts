@@ -1,28 +1,32 @@
 'use client'
 
-import { User } from '@/types'
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'
+import { auth } from './firebase'
 
-export function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem('token')
+export async function login(email: string, password: string) {
+  const cred = await signInWithEmailAndPassword(auth, email, password)
+  return cred.user
 }
 
-export function getUser(): User | null {
-  if (typeof window === 'undefined') return null
-  const user = localStorage.getItem('user')
-  return user ? JSON.parse(user) : null
-}
-
-export function setAuth(token: string, user: User): void {
-  localStorage.setItem('token', token)
-  localStorage.setItem('user', JSON.stringify(user))
-}
-
-export function clearAuth(): void {
-  localStorage.removeItem('token')
-  localStorage.removeItem('user')
+export async function logout() {
+  await signOut(auth)
+  if (typeof window !== 'undefined') window.location.href = '/login'
 }
 
 export function isAuthenticated(): boolean {
-  return !!getToken()
+  return !!auth.currentUser
 }
+
+export function onAuthChange(cb: (user: FirebaseUser | null) => void) {
+  return onAuthStateChanged(auth, cb)
+}
+
+export function getCurrentUser() {
+  return auth.currentUser
+}
+
+// Compatibilidade com código legado
+export function getToken() { return null }
+export function getUser() { return auth.currentUser ? { name: auth.currentUser.displayName || auth.currentUser.email, email: auth.currentUser.email } : null }
+export function setAuth() {}
+export function clearAuth() {}

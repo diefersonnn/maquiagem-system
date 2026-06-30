@@ -21,7 +21,12 @@ export default function LoginPage() {
       addToast('success', 'Login realizado com sucesso!')
       router.replace('/dashboard')
     } catch (error: any) {
-      addToast('error', error.response?.data?.error || 'Credenciais inválidas')
+      const msg = error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password'
+        ? 'Email ou senha incorretos'
+        : error.code === 'auth/too-many-requests'
+        ? 'Muitas tentativas. Tente novamente mais tarde.'
+        : 'Erro ao entrar. Verifique suas credenciais.'
+      addToast('error', msg)
     } finally {
       setLoading(false)
     }
@@ -84,11 +89,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-              <strong>Demo:</strong> admin@maquiadora.com / admin123
-            </p>
-          </div>
         </div>
       </div>
     </div>

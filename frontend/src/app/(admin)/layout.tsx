@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isAuthenticated } from '@/lib/auth'
+import { onAuthStateChanged } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import BottomNav from '@/components/layout/BottomNav'
@@ -13,11 +14,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.replace('/login')
-    } else {
-      setChecked(true)
-    }
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user) router.replace('/login')
+      else setChecked(true)
+    })
+    return unsub
   }, [router])
 
   if (!checked) {
