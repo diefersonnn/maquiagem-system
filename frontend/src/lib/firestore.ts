@@ -403,12 +403,12 @@ export async function getDashboardData() {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const startOfYear  = new Date(now.getFullYear(), 0, 1)
 
-  // Busca primária: clientes (sem filtro = nunca falha por índice)
-  // e todas as coleções com queries simples de campo único
-  const [clientsSnap, allAppointmentsSnap, allFinancialsSnap] = await Promise.all([
+  // Busca primária: sem filtros = nunca falha por índice composto
+  const [clientsSnap, allAppointmentsSnap, allFinancialsSnap, servicesSnap] = await Promise.all([
     getDocs(collection(db, 'clients')),
     getDocs(collection(db, 'appointments')),
     getDocs(collection(db, 'financials')),
+    getDocs(collection(db, 'services')),
   ])
 
   const totalClients = clientsSnap.size
@@ -495,6 +495,22 @@ export async function getDashboardData() {
   const monthIncome   = income(fin(startOfMonth))
   const monthExpenses = expense(fin(startOfMonth))
 
+  // Serviços do mês — agendamentos COMPLETED no mês agrupados por serviço
+  const serviceNameMap: Record<string, string> = {}
+  servicesSnap.docs.forEach(d => { serviceNameMap[d.id] = (d.data() as any).name || 'Serviço' })
+
+  const serviceRevenueMap: Record<string, { name: string; value: number; count: number }> = {}
+  allApts
+    .filter((a: any) => a.status === 'COMPLETED' && toDate(a.date) >= startOfMonth)
+    .forEach((a: any) => {
+      const key = a.serviceId || '__sem_servico__'
+      const name = a.serviceId ? (serviceNameMap[a.serviceId] || 'Serviço') : 'Avulso'
+      if (!serviceRevenueMap[key]) serviceRevenueMap[key] = { name, value: 0, count: 0 }
+      serviceRevenueMap[key].value += a.value || 0
+      serviceRevenueMap[key].count++
+    })
+  const serviceRevenue = Object.values(serviceRevenueMap).sort((a, b) => b.value - a.value)
+
   return {
     todayAppointments,
     upcomingAppointments,
@@ -509,6 +525,6 @@ export async function getDashboardData() {
     netProfit: monthIncome - monthExpenses,
     totalClients,
     chartData,
-    serviceRevenue: [],
+    serviceRevenue,
   }
 }
