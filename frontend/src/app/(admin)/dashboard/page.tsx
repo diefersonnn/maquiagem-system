@@ -40,10 +40,11 @@ function StatCard({
 }
 
 export default function DashboardPage() {
-  const { data, isLoading } = useQuery<DashboardData>({
+  const { data, isLoading, isError, refetch } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: getDashboardData,
     refetchInterval: 60000,
+    retry: 1,
   })
 
   if (isLoading) {
@@ -54,7 +55,17 @@ export default function DashboardPage() {
     )
   }
 
-  const d = data!
+  if (isError || !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-red-500 font-medium">Erro ao carregar o dashboard</p>
+        <p className="text-sm text-gray-400">Verifique a conexão com o Firebase</p>
+        <button onClick={() => refetch()} className="btn-secondary text-sm">Tentar novamente</button>
+      </div>
+    )
+  }
+
+  const d = data
 
   const todayFormatted = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -116,10 +127,10 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Lucro Líquido do Mês"
-          value={formatCurrency(d?.netProfit || 0)}
-          subtitle={d?.netProfit >= 0 ? 'Resultado positivo ✓' : 'Atenção ao resultado'}
+          value={formatCurrency(d.netProfit ?? 0)}
+          subtitle={(d.netProfit ?? 0) >= 0 ? 'Resultado positivo ✓' : 'Atenção ao resultado'}
           icon={DollarSign}
-          color={(d?.netProfit || 0) >= 0 ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' : 'bg-gradient-to-br from-red-500 to-red-600'}
+          color={(d.netProfit ?? 0) >= 0 ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' : 'bg-gradient-to-br from-red-500 to-red-600'}
         />
       </div>
 
