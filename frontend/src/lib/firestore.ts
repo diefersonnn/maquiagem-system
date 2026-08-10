@@ -399,17 +399,55 @@ export async function createInventoryItem(data: any) {
     purchaseDate: Timestamp.fromDate(new Date(data.purchaseDate)),
     createdAt: serverTimestamp(),
   })
-  return { id: ref.id, ...data }
+  const finRef = await addDoc(collection(db, 'financials'), {
+    type: 'EXPENSE',
+    description: `Compra: ${data.name}`,
+    value: data.value,
+    date: Timestamp.fromDate(new Date(data.purchaseDate)),
+    category: data.category || 'Estoque',
+    inventoryId: ref.id,
+    createdAt: serverTimestamp(),
+  })
+  await updateDoc(ref, { financialId: finRef.id })
+  return { id: ref.id, ...data, financialId: finRef.id }
 }
 
 export async function updateInventoryItem(id: string, data: any) {
   const payload: any = { ...data, updatedAt: serverTimestamp() }
   if (data.purchaseDate) payload.purchaseDate = Timestamp.fromDate(new Date(data.purchaseDate))
   await updateDoc(doc(db, 'inventory', id), payload)
+
+  const current = await getDoc(doc(db, 'inventory', id))
+  const item = current.exists() ? (current.data() as any) : {}
+  const financialId = item.financialId
+
+  if (financialId) {
+    const finPayload: any = { updatedAt: serverTimestamp() }
+    if (data.name) finPayload.description = `Compra: ${data.name}`
+    if (data.value !== undefined) finPayload.value = data.value
+    if (data.category) finPayload.category = data.category
+    if (data.purchaseDate) finPayload.date = Timestamp.fromDate(new Date(data.purchaseDate))
+    await updateDoc(doc(db, 'financials', financialId), finPayload)
+  } else {
+    // Item antigo, criado antes do vínculo com Financeiro existir — cria a despesa retroativamente
+    const finRef = await addDoc(collection(db, 'financials'), {
+      type: 'EXPENSE',
+      description: `Compra: ${data.name || item.name}`,
+      value: data.value !== undefined ? data.value : item.value,
+      date: data.purchaseDate ? Timestamp.fromDate(new Date(data.purchaseDate)) : item.purchaseDate,
+      category: data.category || item.category || 'Estoque',
+      inventoryId: id,
+      createdAt: serverTimestamp(),
+    })
+    await updateDoc(doc(db, 'inventory', id), { financialId: finRef.id })
+  }
   return { id, ...data }
 }
 
 export async function deleteInventoryItem(id: string) {
+  const current = await getDoc(doc(db, 'inventory', id))
+  const financialId = current.exists() ? (current.data() as any).financialId : null
+  if (financialId) await deleteDoc(doc(db, 'financials', financialId))
   await deleteDoc(doc(db, 'inventory', id))
 }
 
@@ -426,6 +464,7 @@ export async function getDashboardData() {
   startOfWeek.setDate(now.getDate() - now.getDay())
   startOfWeek.setHours(0, 0, 0, 0)
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const endOfMonth   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
   const startOfYear  = new Date(now.getFullYear(), 0, 1)
 
   // Busca primária: sem filtros = nunca falha por índice composto
@@ -504,7 +543,7 @@ export async function getDashboardData() {
 
   // Projeções
   const projectedDay   = scheduledApts.filter((a: any) => { const d = toDate(a.date); return d >= startOfDay && d <= endOfDay }).reduce((s: number, a: any) => s + (a.value || 0), 0)
-  const projectedMonth = scheduledApts.filter((a: any) => toDate(a.date) >= startOfMonth).reduce((s: number, a: any) => s + (a.value || 0), 0)
+  const projectedMonth = scheduledApts.filter((a: any) => { const d = toDate(a.date); return d >= startOfMonth && d <= endOfMonth }).reduce((s: number, a: any) => s + (a.value || 0), 0)
 
   // Chart data
   const monthFin = fin(startOfMonth)

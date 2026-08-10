@@ -75,6 +75,7 @@ export interface InventoryItem {
   purchaseDate: string
   notes?: string | null
   category?: string | null
+  financialId?: string | null
   createdAt: string
 }
 

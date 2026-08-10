@@ -161,6 +161,8 @@ export default function InventoryPage() {
     onSuccess: () => {
       addToast('success', 'Item removido')
       queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      queryClient.invalidateQueries({ queryKey: ['financial'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
     onError: () => addToast('error', 'Erro ao remover'),
   })
@@ -298,7 +300,11 @@ export default function InventoryPage() {
         <InventoryModal
           item={editItem}
           onClose={() => { setShowModal(false); setEditItem(null) }}
-          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['inventory'] })}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['inventory'] })
+            queryClient.invalidateQueries({ queryKey: ['financial'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+          }}
         />
       )}
     </div>
