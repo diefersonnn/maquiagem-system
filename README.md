@@ -1,21 +1,21 @@
-# Studio Pro - Sistema de Gestao para Maquiadora
+# Studio Pro - Sistema de Gestão para Maquiadora
 
-Sistema web completo para gerenciamento de uma maquiadora autonoma.
+Sistema web completo para gerenciamento de uma maquiadora autônoma.
 
 ## Funcionalidades
 
-- **Dashboard**: metricas em tempo real, graficos de faturamento, agendamentos do dia
-- **Clientes**: cadastro simples, busca por nome/telefone, historico completo
-- **Agenda**: calendario com visualizacoes Dia / Semana / Mes
+- **Dashboard**: métricas em tempo real, gráficos de faturamento, agendamentos do dia
+- **Clientes**: cadastro simples, busca por nome/telefone, histórico completo
+- **Agenda**: calendário com visualizações Dia / Semana / Mês
 - **Financeiro**: controle de receitas e despesas com fluxo de caixa
-- **Estoque**: registro de compras e historico de materiais (gera despesa automaticamente no Financeiro)
-- **Relatorios**: analise de clientes, servicos e financeiro, com exportacao Excel
-- **Configuracoes**: gerenciar servicos, formas de pagamento e perfil
-- **Tema claro/escuro**: toggle pelo header ou configuracoes
+- **Estoque**: registro de compras e histórico de materiais (gera despesa automaticamente no Financeiro)
+- **Relatórios**: análise de clientes, serviços e financeiro, com exportação Excel
+- **Configurações**: gerenciar serviços, formas de pagamento e perfil
+- **Tema claro/escuro**: toggle pelo header ou configurações
 
 ## Como rodar
 
-### Pre-requisitos
+### Pré-requisitos
 - Node.js 18+
 - Uma conta Google e um projeto no [Firebase Console](https://console.firebase.google.com/)
 - npm
@@ -25,8 +25,8 @@ Sistema web completo para gerenciamento de uma maquiadora autonoma.
 No Firebase Console, no projeto usado por este sistema:
 1. Ative **Authentication** com o provedor **Email/Senha**
 2. Ative o **Firestore Database**
-3. Crie ao menos um usuario em Authentication > Users (email e senha), que sera usado para logar no sistema
-4. Em Configuracoes do projeto > Geral > Seus apps, copie as credenciais do app Web
+3. Crie ao menos um usuário em Authentication > Users (email e senha), que será usado para logar no sistema
+4. Em Configurações do projeto > Geral > Seus apps, copie as credenciais do app Web
 
 ### 2. Configurar o frontend
 
@@ -49,9 +49,9 @@ npm install
 npm run dev
 ```
 
-O frontend estara em: http://localhost:3000
+O frontend estará em: http://localhost:3000
 
-Faca login com o usuario criado no passo 1.
+Faça login com o usuário criado no passo 1.
 
 ## Estrutura do Projeto
 
@@ -60,19 +60,19 @@ maquiagem-system/
 ├── frontend/                 # Next.js 14 + TypeScript + Tailwind
 │   └── src/
 │       ├── app/
-│       │   ├── (auth)/       # Pagina de login
-│       │   └── (admin)/      # Paginas protegidas (dashboard, clientes, agenda, financeiro, estoque, relatorios, configuracoes)
-│       ├── components/       # Componentes reutilizaveis
+│       │   ├── (auth)/       # Página de login
+│       │   └── (admin)/      # Páginas protegidas (dashboard, clientes, agenda, financeiro, estoque, relatórios, configurações)
+│       ├── components/       # Componentes reutilizáveis
 │       ├── hooks/            # Custom hooks (ex: useAuth)
 │       ├── lib/
-│       │   ├── firebase.ts   # Inicializacao do Firebase (Auth + Firestore)
+│       │   ├── firebase.ts   # Inicialização do Firebase (Auth + Firestore)
 │       │   ├── firestore.ts  # Camada de acesso aos dados (substitui uma API tradicional)
 │       │   └── auth.ts       # Login/logout via Firebase Auth
 │       └── types/            # TypeScript types
 │
-├── firebase.json              # Configuracao de deploy (Firebase Hosting)
+├── firebase.json              # Configuração de deploy (Firebase Hosting)
 ├── .firebaserc                 # Projeto Firebase associado
-└── backend/                    # Legado: API Express + Prisma/PostgreSQL, nao utilizado pelo app atual
+└── backend/                    # Legado: API Express + Prisma/PostgreSQL, não utilizado pelo app atual
 ```
 
 ## Tecnologias
@@ -80,24 +80,24 @@ maquiagem-system/
 | Camada | Tecnologia |
 |--------|-----------|
 | Frontend | Next.js 14, TypeScript, Tailwind CSS |
-| Graficos | Recharts |
-| Calendario | date-fns |
-| Autenticacao | Firebase Authentication |
+| Gráficos | Recharts |
+| Calendário | date-fns |
+| Autenticação | Firebase Authentication |
 | Banco de dados | Firestore |
-| Exportacao | xlsx |
+| Exportação | xlsx |
 
-## Servicos sugeridos
+## Serviços sugeridos
 
-A tabela de servicos e gerenciada em **Configuracoes > Servicos**. Como ponto de partida, um studio de maquiagem tipicamente cadastra algo como:
+A tabela de serviços é gerenciada em **Configurações > Serviços**. Como ponto de partida, um estúdio de maquiagem tipicamente cadastra algo como:
 
-| Servico | Valor |
+| Serviço | Valor |
 |---------|-------|
 | Em Espera | R$ 0 |
-| Sem Cilios | R$ 90 |
-| Com Cilios | R$ 90 |
-| Infantil sem Video | R$ 50 |
-| Infantil com Video | R$ 70 |
+| Sem Cílios | R$ 90 |
+| Com Cílios | R$ 90 |
+| Infantil sem Vídeo | R$ 50 |
+| Infantil com Vídeo | R$ 70 |
 | Curso Automaquiagem | R$ 180 |
 | Curso Infantil | R$ 140 |
 | Curso Profissional | R$ 800 |
-| Colagem de Cilios | R$ 20 |
+| Colagem de Cílios | R$ 20 |
