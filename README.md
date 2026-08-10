@@ -1,163 +1,103 @@
-# 💄 Studio Pro — Sistema de Gestão para Maquiadora
+# Studio Pro - Sistema de Gestao para Maquiadora
 
-Sistema web completo para gerenciamento de uma maquiadora autônoma.
+Sistema web completo para gerenciamento de uma maquiadora autonoma.
 
-## ✨ Funcionalidades
+## Funcionalidades
 
-- **Dashboard** — métricas em tempo real, gráficos de faturamento, agendamentos do dia
-- **Clientes** — cadastro simples, busca por nome/telefone, histórico completo
-- **Agenda** — calendário com visualizações Dia / Semana / Mês
-- **Financeiro** — controle de receitas e despesas com fluxo de caixa
-- **Estoque** — registro de compras e histórico de materiais
-- **Relatórios** — análise de clientes, serviços e financeiro + exportação Excel
-- **Backup** — automático diário + manual com restauração
-- **Configurações** — gerenciar serviços, formas de pagamento e perfil
-- **Tema claro/escuro** — toggle pelo header ou configurações
+- **Dashboard**: metricas em tempo real, graficos de faturamento, agendamentos do dia
+- **Clientes**: cadastro simples, busca por nome/telefone, historico completo
+- **Agenda**: calendario com visualizacoes Dia / Semana / Mes
+- **Financeiro**: controle de receitas e despesas com fluxo de caixa
+- **Estoque**: registro de compras e historico de materiais (gera despesa automaticamente no Financeiro)
+- **Relatorios**: analise de clientes, servicos e financeiro, com exportacao Excel
+- **Configuracoes**: gerenciar servicos, formas de pagamento e perfil
+- **Tema claro/escuro**: toggle pelo header ou configuracoes
 
-## 🚀 Como rodar
+## Como rodar
 
-### Pré-requisitos
+### Pre-requisitos
 - Node.js 18+
-- PostgreSQL 14+ (ou Docker)
-- npm ou yarn
+- Uma conta Google e um projeto no [Firebase Console](https://console.firebase.google.com/)
+- npm
 
----
+### 1. Configurar o Firebase
 
-### Opção 1: Docker Compose (recomendado)
+No Firebase Console, no projeto usado por este sistema:
+1. Ative **Authentication** com o provedor **Email/Senha**
+2. Ative o **Firestore Database**
+3. Crie ao menos um usuario em Authentication > Users (email e senha), que sera usado para logar no sistema
+4. Em Configuracoes do projeto > Geral > Seus apps, copie as credenciais do app Web
 
-```bash
-docker-compose up -d
+### 2. Configurar o frontend
+
+Crie o arquivo `frontend/.env.local` com as credenciais copiadas no passo anterior:
+
+```
+NEXT_PUBLIC_FIREBASE_API_KEY=...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
+NEXT_PUBLIC_FIREBASE_APP_ID=...
 ```
 
-Acesse: http://localhost:3000
+### 3. Instalar e rodar
 
----
-
-### Opção 2: Desenvolvimento local
-
-#### 1. Banco de dados
-```bash
-# Inicie o PostgreSQL e crie o banco
-createdb maquiadora
-```
-
-#### 2. Backend
-```bash
-cd backend
-npm install
-
-# Configure o .env (já existe um .env pronto)
-# Ajuste DATABASE_URL se necessário
-
-# Gerar o cliente Prisma e criar as tabelas
-npx prisma generate
-npx prisma migrate dev --name init
-
-# Popular com dados de exemplo
-npm run db:seed
-
-# Rodar em desenvolvimento
-npm run dev
-```
-
-O backend estará em: http://localhost:3001
-
-#### 3. Frontend
 ```bash
 cd frontend
 npm install
-
-# Rodar em desenvolvimento
 npm run dev
 ```
 
-O frontend estará em: http://localhost:3000
+O frontend estara em: http://localhost:3000
 
----
+Faca login com o usuario criado no passo 1.
 
-## 🔐 Credenciais padrão
-
-| Campo | Valor |
-|-------|-------|
-| Email | admin@maquiadora.com |
-| Senha | admin123 |
-
-> ⚠️ Altere a senha após o primeiro acesso em **Configurações → Perfil**
-
----
-
-## 🗂 Estrutura do Projeto
+## Estrutura do Projeto
 
 ```
-maquiadora-system/
-├── backend/                 # API Node.js + Express + Prisma
-│   ├── prisma/
-│   │   ├── schema.prisma    # Schema do banco de dados
-│   │   └── seed.ts          # Dados de exemplo
-│   ├── src/
-│   │   ├── middleware/      # Autenticação JWT
-│   │   ├── routes/          # Rotas da API
-│   │   └── index.ts         # Servidor principal
-│   └── backups/             # Arquivos de backup
-│
-├── frontend/                # Next.js 14 + TypeScript + Tailwind
+maquiagem-system/
+├── frontend/                 # Next.js 14 + TypeScript + Tailwind
 │   └── src/
 │       ├── app/
-│       │   ├── (auth)/      # Página de login
-│       │   └── (admin)/     # Páginas protegidas
-│       ├── components/      # Componentes reutilizáveis
-│       ├── hooks/           # Custom hooks
-│       ├── lib/             # Utilitários e API client
-│       └── types/           # TypeScript types
+│       │   ├── (auth)/       # Pagina de login
+│       │   └── (admin)/      # Paginas protegidas (dashboard, clientes, agenda, financeiro, estoque, relatorios, configuracoes)
+│       ├── components/       # Componentes reutilizaveis
+│       ├── hooks/            # Custom hooks (ex: useAuth)
+│       ├── lib/
+│       │   ├── firebase.ts   # Inicializacao do Firebase (Auth + Firestore)
+│       │   ├── firestore.ts  # Camada de acesso aos dados (substitui uma API tradicional)
+│       │   └── auth.ts       # Login/logout via Firebase Auth
+│       └── types/            # TypeScript types
 │
-└── docker-compose.yml       # Orquestração dos serviços
+├── firebase.json              # Configuracao de deploy (Firebase Hosting)
+├── .firebaserc                 # Projeto Firebase associado
+└── backend/                    # Legado: API Express + Prisma/PostgreSQL, nao utilizado pelo app atual
 ```
 
----
-
-## 🛠 Tecnologias
+## Tecnologias
 
 | Camada | Tecnologia |
 |--------|-----------|
 | Frontend | Next.js 14, TypeScript, Tailwind CSS |
-| Gráficos | Recharts |
-| Calendário | date-fns |
-| Backend | Node.js, Express, TypeScript |
-| ORM | Prisma |
-| Banco de dados | PostgreSQL |
-| Autenticação | JWT (bcryptjs) |
-| Exportação | xlsx |
-| Backup | Automático via node-cron |
+| Graficos | Recharts |
+| Calendario | date-fns |
+| Autenticacao | Firebase Authentication |
+| Banco de dados | Firestore |
+| Exportacao | xlsx |
 
----
+## Servicos sugeridos
 
-## 📦 Serviços padrão cadastrados
+A tabela de servicos e gerenciada em **Configuracoes > Servicos**. Como ponto de partida, um studio de maquiagem tipicamente cadastra algo como:
 
-| Serviço | Valor |
+| Servico | Valor |
 |---------|-------|
 | Em Espera | R$ 0 |
-| Sem Cílios | R$ 90 |
-| Com Cílios | R$ 90 |
-| Infantil sem Vídeo | R$ 50 |
-| Infantil com Vídeo | R$ 70 |
+| Sem Cilios | R$ 90 |
+| Com Cilios | R$ 90 |
+| Infantil sem Video | R$ 50 |
+| Infantil com Video | R$ 70 |
 | Curso Automaquiagem | R$ 180 |
 | Curso Infantil | R$ 140 |
 | Curso Profissional | R$ 800 |
-| Colagem de Cílios | R$ 20 |
-
-> Todos os valores podem ser alterados em **Configurações → Serviços**
-
----
-
-## 🔄 Comandos úteis do Backend
-
-```bash
-# Ver banco de dados visualmente
-npm run db:studio
-
-# Resetar banco e recriar dados de exemplo
-npm run db:reset
-
-# Criar nova migration
-npx prisma migrate dev --name nome_da_migration
-```
+| Colagem de Cilios | R$ 20 |
