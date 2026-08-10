@@ -83,6 +83,21 @@ export async function getClient(id: string) {
   return docToObj(await getDoc(doc(db, 'clients', id)))
 }
 
+// Busca leve para o header (sem stats de agendamentos, só o necessário pra exibir/navegar)
+export async function searchClientsLite(term: string) {
+  if (!term.trim()) return []
+  const snap = await getDocs(collection(db, 'clients'))
+  const s = term.toLowerCase()
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as any))
+    .filter((c: any) =>
+      c.firstName?.toLowerCase().includes(s) ||
+      c.lastName?.toLowerCase().includes(s) ||
+      c.phone?.includes(s)
+    )
+    .slice(0, 6)
+}
+
 export async function createClient(data: any) {
   // Verificar duplicata de telefone
   const existing = await getDocs(query(collection(db, 'clients'), where('phone', '==', data.phone)))

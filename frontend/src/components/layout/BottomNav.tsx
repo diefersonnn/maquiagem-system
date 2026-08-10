@@ -34,10 +34,10 @@ export default function BottomNav() {
       {showMore && (
         <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
           <div className="fixed inset-0 bg-black/40" onClick={() => setShowMore(false)} />
-          <div className="relative bg-white dark:bg-gray-900 rounded-t-2xl p-4 pb-24 shadow-xl">
+          <div className="relative bg-white dark:bg-stone-900 rounded-t-2xl p-4 pb-24 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <p className="font-semibold text-gray-900 dark:text-white">Mais opções</p>
-              <button onClick={() => setShowMore(false)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+              <p className="font-semibold text-stone-900 dark:text-white">Mais opções</p>
+              <button onClick={() => setShowMore(false)} className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800">
                 <X size={18} />
               </button>
             </div>
@@ -53,7 +53,7 @@ export default function BottomNav() {
                       'flex flex-col items-center gap-2 p-4 rounded-xl text-sm font-medium transition-colors',
                       isActive
                         ? 'bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400'
-                        : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                        : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
                     )}
                   >
                     <item.icon size={22} />
@@ -67,7 +67,7 @@ export default function BottomNav() {
       )}
 
       {/* Bottom bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex items-stretch safe-bottom">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 flex items-stretch safe-bottom">
         {mainItems.map(item => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
           return (
@@ -78,7 +78,7 @@ export default function BottomNav() {
                 'flex-1 flex flex-col items-center justify-center gap-1 py-2 text-xs font-medium transition-colors',
                 isActive
                   ? 'text-primary-600 dark:text-primary-400'
-                  : 'text-gray-400 dark:text-gray-500'
+                  : 'text-stone-400 dark:text-stone-500'
               )}
             >
               <item.icon size={20} className={isActive ? 'text-primary-600 dark:text-primary-400' : ''} />
@@ -95,7 +95,7 @@ export default function BottomNav() {
             'flex-1 flex flex-col items-center justify-center gap-1 py-2 text-xs font-medium transition-colors',
             isMoreActive
               ? 'text-primary-600 dark:text-primary-400'
-              : 'text-gray-400 dark:text-gray-500'
+              : 'text-stone-400 dark:text-stone-500'
           )}
         >
           <MoreHorizontal size={20} />

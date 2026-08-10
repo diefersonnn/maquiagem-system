@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, createContext, useContext, useEffect } from 'react'
+import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react'
 
 // Theme Context
 type Theme = 'light' | 'dark'
@@ -88,19 +89,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
             {toasts.map(toast => (
               <div
                 key={toast.id}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white text-sm font-medium max-w-xs animate-in slide-in-from-right
-                  ${toast.type === 'success' ? 'bg-green-600' : ''}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lift text-white text-sm font-medium max-w-xs animate-in slide-in-from-right
+                  ${toast.type === 'success' ? 'bg-emerald-600' : ''}
                   ${toast.type === 'error' ? 'bg-red-600' : ''}
-                  ${toast.type === 'warning' ? 'bg-yellow-500' : ''}
-                  ${toast.type === 'info' ? 'bg-blue-600' : ''}
+                  ${toast.type === 'warning' ? 'bg-amber-500' : ''}
+                  ${toast.type === 'info' ? 'bg-sky-600' : ''}
                 `}
               >
-                {toast.type === 'success' && '✓'}
-                {toast.type === 'error' && '✕'}
-                {toast.type === 'warning' && '⚠'}
-                {toast.type === 'info' && 'ℹ'}
+                {toast.type === 'success' && <CheckCircle2 size={18} className="flex-shrink-0" />}
+                {toast.type === 'error' && <XCircle size={18} className="flex-shrink-0" />}
+                {toast.type === 'warning' && <AlertTriangle size={18} className="flex-shrink-0" />}
+                {toast.type === 'info' && <Info size={18} className="flex-shrink-0" />}
                 <span>{toast.message}</span>
-                <button onClick={() => removeToast(toast.id)} className="ml-2 opacity-70 hover:opacity-100">✕</button>
+                <button onClick={() => removeToast(toast.id)} className="ml-2 opacity-70 hover:opacity-100">
+                  <X size={14} />
+                </button>
               </div>
             ))}
           </div>

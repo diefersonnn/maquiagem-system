@@ -1,4 +1,4 @@
-# Studio Pro - Sistema de Gestão para Maquiadora
+# Blush - Sistema de Gestão para Maquiadora
 
 Sistema web completo para gerenciamento de uma maquiadora autônoma.
 

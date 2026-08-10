@@ -10,8 +10,6 @@ import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import BottomNav from '@/components/layout/BottomNav'
 
-const APP_VERSION = 'v1.6.0'
-
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [checked, setChecked] = useState(false)
@@ -34,7 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="lg:ml-60 flex flex-col min-h-screen">
         <Header onMenuToggle={() => setSidebarOpen(prev => !prev)} />
@@ -43,9 +41,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </main>
       </div>
       <BottomNav />
-      <span className="fixed bottom-3 right-3 z-50 text-[10px] font-mono bg-black/10 dark:bg-white/10 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded select-none pointer-events-none">
-        {APP_VERSION}
-      </span>
     </div>
   )
 }
